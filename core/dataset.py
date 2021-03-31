@@ -116,16 +116,16 @@ class Dataset(object):
                 ),
                 dtype=np.float32,
             )
-            batch_label_lbbox = np.zeros(
-                (
-                    self.batch_size,
-                    self.train_output_sizes[2],
-                    self.train_output_sizes[2],
-                    self.anchor_per_scale,
-                    5 + self.num_classes,
-                ),
-                dtype=np.float32,
-            )
+            # batch_label_lbbox = np.zeros(
+            #     (
+            #         self.batch_size,
+            #         self.train_output_sizes[1],
+            #         self.train_output_sizes[1],
+            #         self.anchor_per_scale,
+            #         5 + self.num_classes,
+            #     ),
+            #     dtype=np.float32,
+            # )
 
             batch_sbboxes = np.zeros(
                 (self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32
@@ -133,9 +133,9 @@ class Dataset(object):
             batch_mbboxes = np.zeros(
                 (self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32
             )
-            batch_lbboxes = np.zeros(
-                (self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32
-            )
+            # batch_lbboxes = np.zeros(
+            #     (self.batch_size, self.max_bbox_per_scale, 4), dtype=np.float32
+            # )
 
             num = 0
             if self.batch_count < self.num_batchs:
@@ -148,31 +148,29 @@ class Dataset(object):
                     (
                         label_sbbox,
                         label_mbbox,
-                        label_lbbox,
                         sbboxes,
                         mbboxes,
-                        lbboxes,
+                        # lbboxes,
                     ) = self.preprocess_true_boxes(bboxes)
 
                     batch_image[num, :, :, :] = image
                     batch_label_sbbox[num, :, :, :, :] = label_sbbox
                     batch_label_mbbox[num, :, :, :, :] = label_mbbox
-                    batch_label_lbbox[num, :, :, :, :] = label_lbbox
                     batch_sbboxes[num, :, :] = sbboxes
                     batch_mbboxes[num, :, :] = mbboxes
-                    batch_lbboxes[num, :, :] = lbboxes
+                    # batch_lbboxes[num, :, :] = lbboxes
                     num += 1
                 self.batch_count += 1
                 batch_smaller_target = batch_label_sbbox, batch_sbboxes
                 batch_medium_target = batch_label_mbbox, batch_mbboxes
-                batch_larger_target = batch_label_lbbox, batch_lbboxes
+                # batch_larger_target = batch_label_lbbox, batch_lbboxes
 
                 return (
                     batch_image,
                     (
                         batch_smaller_target,
                         batch_medium_target,
-                        batch_larger_target,
+                        # batch_larger_target,
                     ),
                 )
             else:
@@ -297,9 +295,9 @@ class Dataset(object):
                     5 + self.num_classes,
                 )
             )
-            for i in range(3)
+            for i in range(2)
         ]
-        bboxes_xywh = [np.zeros((self.max_bbox_per_scale, 4)) for _ in range(3)]
+        bboxes_xywh = [np.zeros((self.max_bbox_per_scale, 4)) for _ in range(2)]
         bbox_count = np.zeros((3,))
 
         for bbox in bboxes:
@@ -327,7 +325,7 @@ class Dataset(object):
 
             iou = []
             exist_positive = False
-            for i in range(3):
+            for i in range(2):
                 anchors_xywh = np.zeros((self.anchor_per_scale, 4))
                 anchors_xywh[:, 0:2] = (
                     np.floor(bbox_xywh_scaled[i, 0:2]).astype(np.int32) + 0.5
@@ -374,9 +372,9 @@ class Dataset(object):
                 )
                 bboxes_xywh[best_detect][bbox_ind, :4] = bbox_xywh
                 bbox_count[best_detect] += 1
-        label_sbbox, label_mbbox, label_lbbox = label
-        sbboxes, mbboxes, lbboxes = bboxes_xywh
-        return label_sbbox, label_mbbox, label_lbbox, sbboxes, mbboxes, lbboxes
+        label_sbbox, label_mbbox = label
+        sbboxes, mbboxes = bboxes_xywh
+        return label_sbbox, label_mbbox, sbboxes, mbboxes#, lbboxes
 
     def __len__(self):
         return self.num_batchs
