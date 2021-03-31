@@ -3,6 +3,8 @@ from absl.flags import FLAGS
 import os
 import shutil
 import tensorflow as tf
+gpus = tf.config.experimental.list_physical_devices('GPU')
+tf.config.experimental.set_memory_growth(gpus[0], True)
 from core.yolov4 import YOLO, decode, compute_loss, decode_train
 from core.dataset import Dataset
 from core.config import cfg
@@ -10,15 +12,12 @@ import numpy as np
 from core import utils
 from core.utils import freeze_all, unfreeze_all
 
+
 flags.DEFINE_string('model', 'yolov4', 'yolov4, yolov3')
-flags.DEFINE_string('weights', './scripts/yolov4.weights', 'pretrained weights')
-flags.DEFINE_boolean('tiny', False, 'yolo or yolo-tiny')
+flags.DEFINE_string('weights', None, 'pretrained weights')
+flags.DEFINE_boolean('tiny', True, 'yolo or yolo-tiny')
 
 def main(_argv):
-    physical_devices = tf.config.experimental.list_physical_devices('GPU')
-    if len(physical_devices) > 0:
-        tf.config.experimental.set_memory_growth(physical_devices[0], True)
-
     trainset = Dataset(FLAGS, is_training=True)
     testset = Dataset(FLAGS, is_training=False)
     logdir = "./data/log"
@@ -154,7 +153,8 @@ def main(_argv):
         for image_data, target in testset:
             test_step(image_data, target)
         model.save_weights("./checkpoints/yolov4")
-
+        model.save('./checkpoints/yolov4-tiny')
+        model.save('./checkpoints/yolov4-tiny.h5')
 if __name__ == '__main__':
     try:
         app.run(main)
