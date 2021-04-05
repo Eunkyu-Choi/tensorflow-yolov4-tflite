@@ -20,12 +20,12 @@ flags.DEFINE_string('weights', './checkpoints/yolov4-416',
 flags.DEFINE_integer('size', 416, 'resize images to')
 flags.DEFINE_boolean('tiny', False, 'yolo or yolo-tiny')
 flags.DEFINE_string('model', 'yolov4', 'yolov3 or yolov4')
-flags.DEFINE_string('video', './data/video/video.mp4', 'path to input video or set to 0 for webcam')
-flags.DEFINE_string('output', None, 'path to output video')
-flags.DEFINE_string('output_format', 'XVID', 'codec used in VideoWriter when saving video to file')
+flags.DEFINE_string('video', './data/road.mp4', 'path to input video')
 flags.DEFINE_float('iou', 0.45, 'iou threshold')
 flags.DEFINE_float('score', 0.25, 'score threshold')
-flags.DEFINE_boolean('dont_show', False, 'dont show video output')
+flags.DEFINE_string('output', None, 'path to output video')
+flags.DEFINE_string('output_format', 'XVID', 'codec used in VideoWriter when saving video to file')
+flags.DEFINE_boolean('dis_cv2_window', False, 'disable cv2 window during the process') # this is good for the .ipynb
 
 def main(_argv):
     config = ConfigProto()
@@ -34,6 +34,9 @@ def main(_argv):
     STRIDES, ANCHORS, NUM_CLASS, XYSCALE = utils.load_config(FLAGS)
     input_size = FLAGS.size
     video_path = FLAGS.video
+
+    print("Video from: ", video_path )
+    vid = cv2.VideoCapture(video_path)
 
     if FLAGS.framework == 'tflite':
         interpreter = tf.lite.Interpreter(model_path=FLAGS.weights)
@@ -45,15 +48,7 @@ def main(_argv):
     else:
         saved_model_loaded = tf.saved_model.load(FLAGS.weights, tags=[tag_constants.SERVING])
         infer = saved_model_loaded.signatures['serving_default']
-
-    # begin video capture
-    try:
-        vid = cv2.VideoCapture(int(video_path))
-    except:
-        vid = cv2.VideoCapture(video_path)
-
-    out = None
-
+    
     if FLAGS.output:
         # by default VideoCapture returns float instead of int
         width = int(vid.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -62,20 +57,23 @@ def main(_argv):
         codec = cv2.VideoWriter_fourcc(*FLAGS.output_format)
         out = cv2.VideoWriter(FLAGS.output, codec, fps, (width, height))
 
+    frame_id = 0
     while True:
         return_value, frame = vid.read()
         if return_value:
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             image = Image.fromarray(frame)
         else:
-            print('Video has ended or failed, try a different video format!')
-            break
-    
+            if frame_id == vid.get(cv2.CAP_PROP_FRAME_COUNT):
+                print("Video processing complete")
+                break
+            raise ValueError("No image! Try with another video format")
+        
         frame_size = frame.shape[:2]
         image_data = cv2.resize(frame, (input_size, input_size))
         image_data = image_data / 255.
         image_data = image_data[np.newaxis, ...].astype(np.float32)
-        start_time = time.time()
+        prev_time = time.time()
 
         if FLAGS.framework == 'tflite':
             interpreter.set_tensor(input_details[0]['index'], image_data)
@@ -105,19 +103,22 @@ def main(_argv):
         )
         pred_bbox = [boxes.numpy(), scores.numpy(), classes.numpy(), valid_detections.numpy()]
         image = utils.draw_bbox(frame, pred_bbox)
-        fps = 1.0 / (time.time() - start_time)
-        print("FPS: %.2f" % fps)
+        curr_time = time.time()
+        exec_time = curr_time - prev_time
         result = np.asarray(image)
-        cv2.namedWindow("result", cv2.WINDOW_AUTOSIZE)
+        info = "time: %.2f ms" %(1000*exec_time)
+        print(info)
+
         result = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        
-        if not FLAGS.dont_show:
+        if not FLAGS.dis_cv2_window:
+            cv2.namedWindow("result", cv2.WINDOW_AUTOSIZE)
             cv2.imshow("result", result)
-        
+            if cv2.waitKey(1) & 0xFF == ord('q'): break
+
         if FLAGS.output:
             out.write(result)
-        if cv2.waitKey(1) & 0xFF == ord('q'): break
-    cv2.destroyAllWindows()
+
+        frame_id += 1
 
 if __name__ == '__main__':
     try:
